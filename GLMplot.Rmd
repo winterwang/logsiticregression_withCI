@@ -1,0 +1,77 @@
+---
+title: "Plotting confidence intervals for the predicted probabilities from a logistic regression"
+output: html_notebook
+---
+
+
+
+```{r}
+#Let's make up a data
+set.seed(1234)
+mydat <- data.frame(
+    won=as.factor(sample(c(0, 1), 250, replace=TRUE)),  #wining probability
+    bid=runif(250, min=0, max=1000) #uniform distribution data
+)
+head(mydat)
+
+#Let's fit the Logistic Regression using glm function:
+mod1 <- glm(won~bid, data=mydat, family=binomial(link="logit"))
+summary(mod1)
+
+```
+
+A logistic regression model models the relationship between a binary response variable and, in this case, one continuous predictor. The result is a logit-transormed probability as a linear relation to the predictor. The coefficients from `mod1` are given in logged odds (which are difficult to interpet), according to:
+$$logit(p) = \log(\frac{p}{1-p}) = \beta_0 + \beta_1x_1$$
+
+To convert logged odds to probabilities, we can translate the above to:
+$$p = \frac{\exp(\beta_0 + \beta_1x_1)}{(1+\exp(\beta_0+\beta_1x_1))}$$
+
+Let's use this information to set up the plot. First, you need a range of the predictor variable:
+```{r}
+plotdat <- data.frame(bid=(0:1000))
+head(plotdat)
+```
+
+Then using `predict`, you can obtain predictions based on your model:
+
+```{r}
+preddat <- predict(mod1, newdata=plotdat, se.fit=TRUE)
+str(preddat)
+head(data.frame(preddat))
+```
+
+
+By specifying `se.fit=TRUE`, you also get the **standard error** associated with each fitted value. The resulting `data.frame` is a matrix with the following components: 
+
+* the fitted predictions (`fit`), 
+* the estimated standard errors (`se.fit`), and 
+* a scalar giving the **square root** of the dispersion used to compute the standard errors (`residual.scale`). 
+
+In the case of a binomial logit, the value will be 1 (which you can see by entering `preddat$residual.scale` in `R`). If you want to see an example of what you've calculated so far, you can type `head(data.frame(preddat))`.
+
+The next step is to set up the plot. We can set up a blank plotting area with the parameters first:
+
+```{r}
+with(mydat, plot(bid, won, type="n", 
+    ylim=c(0, 1), ylab="Probability of winning", xlab="Bid"))
+```
+
+
+Now you can see where it is important to know how to calculate the fitted probabilities. You can draw the line corresponding to the fitted probabilities following the second formula above. Using the `preddat data.frame` you can convert the fitted values to probabilities and use that to plot a line against the values of your predictor variable.
+
+```{r}
+with(mydat, plot(bid, won, type="n", 
+    ylim=c(0, 1), ylab="Probability of winning", xlab="Bid"))
+with(preddat, lines(0:1000, exp(fit)/(1+exp(fit)), col="blue"))
+```
+
+Finally, answer the question, the confidence intervals can be added to the plot by calculating the probability for the fitted values `+/-` 1.96 times the standard error:
+
+```{r}
+with(mydat, plot(bid, won, type="n", 
+    ylim=c(0, 1), ylab="Probability of winning", xlab="Bid"))
+with(preddat, lines(0:1000, exp(fit)/(1+exp(fit)), col="blue"))
+with(preddat, lines(0:1000, exp(fit+1.96*se.fit)/(1+exp(fit+1.96*se.fit)), lty=2))
+with(preddat, lines(0:1000, exp(fit-1.96*se.fit)/(1+exp(fit-1.96*se.fit)), lty=2))
+```
+
